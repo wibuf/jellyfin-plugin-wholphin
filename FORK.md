@@ -12,8 +12,10 @@ the plan is #1633, the setup #1634, the first release #1635.
 
 - **`gooseflix` is the main branch.** `main` is upstream's code. Work on a `claude/...` branch from
   `gooseflix` and merge into it.
-- **A release is a `v*` tag on `gooseflix`.** `.github/workflows/release.yml` builds the zip and
-  publishes a GitHub release with the zip's MD5 in its notes. Tags not on `gooseflix` are refused.
+- **A release is a version bump on `gooseflix`.** Every push to `gooseflix` runs
+  `.github/workflows/release.yml`: if the version in `Directory.Build.props` isn't released yet, it
+  builds the zip and publishes release `v<version>` (making the tag) with the zip's MD5 in its notes;
+  otherwise it does nothing. A `v*` tag pushed by hand still works. Commits not on `gooseflix` are refused.
 - **Jellyfin installs it from Scuffed**, which serves a plugin repository manifest built from these
   releases (#1634).
 

@@ -19,8 +19,8 @@ shape the design.
 
 ## Releasing
 
-- A release is a `v*` tag on `gooseflix` (CI builds and publishes it). Bump the version first
-  (FORK.md, Conventions).
+- A release is a version bump merged into `gooseflix`: CI publishes `v<version>` on the push
+  (FORK.md, Conventions). Pushes that don't change the version release nothing.
 - Installing or updating it on the server needs a **Jellyfin restart**, only in the 4–5 AM window,
   and only when the owner has asked for it.
 - Never put the Jellyfin API key, MDBList key or any token in a file or commit.
