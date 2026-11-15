@@ -40,7 +40,7 @@ jobs:
 
       - name: Test
         run: |
-          dotnet test "${{ env.NAME }}"
+          dotnet test
 
       - name: Build
         run: |

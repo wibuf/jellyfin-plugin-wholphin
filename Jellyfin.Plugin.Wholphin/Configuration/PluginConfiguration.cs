@@ -9,6 +9,9 @@ public class PluginConfiguration : BasePluginConfiguration
     public int Version { get; set; } = 1;
     public HomeConfig HomeConfig { get; set; } = new();
     public SeerrConfig SeerrConfig { get; set; } = new();
+
+    // Fork: personal home rows (GooseFlix #1635)
+    public Rows.RowsConfig Rows { get; set; } = new();
 }
 
 public class HomeConfig
