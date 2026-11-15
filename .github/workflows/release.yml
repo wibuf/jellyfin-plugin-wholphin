@@ -24,6 +24,12 @@ jobs:
         with:
           fetch-depth: 0 # Need the tags to build
 
+      # Fork: only tags on gooseflix are released; Scuffed's plugin manifest lists every release
+      - name: Check the tag is on gooseflix
+        run: |
+          git fetch origin gooseflix
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/gooseflix || { echo "Tag is not on gooseflix"; exit 1; }
+
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -43,6 +49,7 @@ jobs:
           echo "Checksums:"
           sha256sum "./dist/${{ env.NAME }}.zip"
           md5sum "./dist/${{ env.NAME }}.zip"
+          echo "MD5=$(md5sum "./dist/${{ env.NAME }}.zip" | cut -d' ' -f1)" >> "$GITHUB_ENV"
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,5 +57,5 @@ jobs:
           shopt -s globstar
 
           gh release create "${{ env.TAG_NAME }}" \
-            --latest --title "${{ env.TAG_NAME }}" --verify-tag -n "" --draft \
+            --latest --title "${{ env.TAG_NAME }}" --verify-tag -n "md5: ${{ env.MD5 }}" \
             "./dist/${{ env.NAME }}.zip"

@@ -13,7 +13,11 @@ namespace Jellyfin.Plugin.Wholphin;
 
 public class WholphinPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
-    public override string Name => "Wholphin";
+    // Fork: shown as GooseFlix on the Jellyfin plugins page. The id and the /wholphin routes stay
+    // upstream's, so the GooseFlix app (Wholphin's code) finds this plugin where it looks for upstream's.
+    public override string Name => "GooseFlix";
+
+    public override string Description => "Server companion for the GooseFlix TV app: default home page and personal home rows.";
     public override Guid Id => Guid.Parse("00E68C90-8840-48D0-AD65-0A5D58249652");
 
     public static WholphinPlugin? Instance { get; private set; }
