@@ -12,6 +12,9 @@ public class PluginConfiguration : BasePluginConfiguration
 
     // Fork: personal home rows (GooseFlix #1635)
     public Rows.RowsConfig Rows { get; set; } = new();
+
+    // Fork: fetch ratings for new movies and shows straight away (GooseFlix #1635)
+    public Ratings.RatingsOnAddConfig RatingsOnAdd { get; set; } = new();
 }
 
 public class HomeConfig

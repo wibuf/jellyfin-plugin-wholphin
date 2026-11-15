@@ -21,8 +21,22 @@ public class RowsConfig
     /// <summary>Gets or sets how many mood rows show a day.</summary>
     public int MoodsPerDay { get; set; } = 3;
 
-    /// <summary>Gets or sets how long a row is cached per user, in hours.</summary>
-    public int CacheHours { get; set; } = 3;
+    /// <summary>
+    /// Gets or sets the longest a built row is kept, in hours. Rows are also rebuilt when the row day
+    /// changes (see <see cref="WarmHour"/>), so 24 means "once a day".
+    /// </summary>
+    public int CacheHours { get; set; } = 24;
+
+    /// <summary>
+    /// Gets or sets the local hour the row day starts: rotation changes then, and rows for active
+    /// users are rebuilt in the background so the home page finds them ready. 5 = just after the
+    /// 4-5 AM restart window. User-scoped queries over shows take seconds on the GooseFlix server,
+    /// so a row built while the app waits would be slow.
+    /// </summary>
+    public int WarmHour { get; set; } = 5;
+
+    /// <summary>Gets or sets which users get their rows built ahead: those active in this many days.</summary>
+    public int WarmActiveDays { get; set; } = 14;
 
     /// <summary>Gets or sets how far back watched titles count, in days.</summary>
     public int LookbackDays { get; set; } = 60;
@@ -49,6 +63,19 @@ public class RowsConfig
                 m.MinTitles,
                 m.Months ?? Array.Empty<int>()))
             .ToArray();
+    }
+
+    /// <summary>
+    /// A fingerprint of the mood settings: cached mood counts are keyed by it, so editing the moods
+    /// on the settings page takes effect without a restart.
+    /// </summary>
+    /// <returns>The fingerprint.</returns>
+    public string MoodsVersion()
+    {
+        var text = string.Join(
+            ";",
+            Definitions().Select(d => d.Id + ":" + string.Join(",", d.Keywords) + ":" + d.MinTitles + ":" + string.Join(",", d.Months)));
+        return RowSelection.Hash(text + "|" + MoodsPerDay).ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>
