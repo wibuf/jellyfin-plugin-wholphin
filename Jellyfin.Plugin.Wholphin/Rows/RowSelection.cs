@@ -187,6 +187,113 @@ public static class RowSelection
     }
 
     /// <summary>
+    /// <paramref name="weights"/> less one per genre for each title the user marked "Don't recommend" (disliked):
+    /// genres the user keeps turning down count for less. Genres left at zero or below are dropped.
+    /// </summary>
+    /// <param name="weights">Genre weights from what the user watched.</param>
+    /// <param name="dislikedGenres">The genres of each disliked title.</param>
+    /// <returns>The adjusted weights, case-insensitive.</returns>
+    public static Dictionary<string, int> LessDisliked(IReadOnlyDictionary<string, int> weights, IEnumerable<IEnumerable<string>> dislikedGenres)
+    {
+        var result = new Dictionary<string, int>(weights, StringComparer.OrdinalIgnoreCase);
+        foreach (var genres in dislikedGenres)
+        {
+            foreach (var genre in genres.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (result.TryGetValue(genre, out var weight))
+                {
+                    result[genre] = weight - 1;
+                }
+            }
+        }
+
+        foreach (var genre in result.Where(w => w.Value <= 0).Select(w => w.Key).ToList())
+        {
+            result.Remove(genre);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// "Picked for you" order: the best genre matches (<see cref="ByGenreMatch{T}"/>), but taken in turn from each
+    /// of the user's genres, heaviest first, so one genre can't fill the row; then movies and shows
+    /// alternate, each keeping that order.
+    /// </summary>
+    /// <typeparam name="T">Item type.</typeparam>
+    /// <param name="candidates">Unwatched candidates.</param>
+    /// <param name="weights">Genre weights.</param>
+    /// <param name="genres">A candidate's genres.</param>
+    /// <param name="isMovie">Whether a candidate is a movie (else a show).</param>
+    /// <param name="key">A stable key for the candidate.</param>
+    /// <param name="seed">Daily seed for ties.</param>
+    /// <returns>The row, in order.</returns>
+    public static List<T> Diverse<T>(
+        IEnumerable<T> candidates,
+        IReadOnlyDictionary<string, int> weights,
+        Func<T, IEnumerable<string>> genres,
+        Func<T, bool> isMovie,
+        Func<T, string> key,
+        ulong seed)
+    {
+        var ranked = ByGenreMatch(candidates, weights, genres, key, seed);
+        var queues = weights
+            .Where(w => w.Value > 0)
+            .OrderByDescending(w => w.Value)
+            .ThenBy(w => w.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(w => new Queue<T>(ranked.Where(i => genres(i).Contains(w.Key, StringComparer.OrdinalIgnoreCase))))
+            .ToList();
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        var turns = new List<T>();
+        var took = true;
+        while (took)
+        {
+            took = false;
+            foreach (var queue in queues)
+            {
+                while (queue.Count > 0)
+                {
+                    var item = queue.Dequeue();
+                    if (used.Add(key(item)))
+                    {
+                        turns.Add(item);
+                        took = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        turns.AddRange(ranked.Where(i => used.Add(key(i))));
+
+        var movies = new Queue<T>(turns.Where(isMovie));
+        var shows = new Queue<T>(turns.Where(i => !isMovie(i)));
+        var result = new List<T>(turns.Count);
+        var movieNext = turns.Count > 0 && isMovie(turns[0]);
+        while (movies.Count > 0 || shows.Count > 0)
+        {
+            var from = (movieNext && movies.Count > 0) || shows.Count == 0 ? movies : shows;
+            result.Add(from.Dequeue());
+            movieNext = !movieNext;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The "Because you watched" kind from a request: "movie", "series" ("show" and "tv" too), or
+    /// null for the row that draws on anything.
+    /// </summary>
+    /// <param name="kind">The query value.</param>
+    /// <returns>"movie", "series" or null.</returns>
+    public static string? WatchedKind(string? kind) => kind?.Trim().ToLowerInvariant() switch
+    {
+        "movie" or "movies" => "movie",
+        "series" or "show" or "shows" or "tv" => "series",
+        _ => null,
+    };
+
+    /// <summary>
     /// Whether a caller may get rows for <paramref name="requested"/>: their own, or anyone's for an
     /// admin or an API key.
     /// </summary>

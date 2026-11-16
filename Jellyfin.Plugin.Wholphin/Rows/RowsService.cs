@@ -103,12 +103,16 @@ public sealed class RowsService
     /// <returns>The user, or null.</returns>
     public User? GetUser(Guid id) => _userManager.GetUserById(id);
 
-    /// <summary>The "Because you watched" row.</summary>
+    /// <summary>
+    /// A "Because you watched" row: from a movie the user finished ("movie"), a show ("series"), or
+    /// anything (null), which then avoids the other two rows' titles.
+    /// </summary>
     /// <param name="user">The user.</param>
+    /// <param name="kind">"movie", "series" or null (see <see cref="RowSelection.WatchedKind"/>).</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>The row.</returns>
-    public Task<RowResult> BecauseYouWatched(User user, CancellationToken cancellationToken) =>
-        Cached(user, "because-you-watched", () => BuildBecauseYouWatched(user, cancellationToken));
+    public Task<RowResult> BecauseYouWatched(User user, string? kind, CancellationToken cancellationToken) =>
+        Cached(user, "because-you-watched" + (kind is null ? string.Empty : ":" + kind), () => BuildBecauseYouWatched(user, kind, cancellationToken));
 
     /// <summary>Today's mood row in a slot.</summary>
     /// <param name="user">The user.</param>
@@ -154,7 +158,10 @@ public sealed class RowsService
 
             if (config.BecauseYouWatched)
             {
-                await BecauseYouWatched(user, cancellationToken).ConfigureAwait(false);
+                // The movie and show rows first: the "anything" row avoids their titles
+                await BecauseYouWatched(user, "movie", cancellationToken).ConfigureAwait(false);
+                await BecauseYouWatched(user, "series", cancellationToken).ConfigureAwait(false);
+                await BecauseYouWatched(user, null, cancellationToken).ConfigureAwait(false);
             }
 
             if (config.PickedForYou)
@@ -184,19 +191,34 @@ public sealed class RowsService
     /// <returns>The page.</returns>
     public QueryResult<BaseItemDto> Page(User user, RowResult row, int? startIndex, int? limit)
     {
-        var page = RowSelection.Page(row.ItemIds, startIndex, limit is > 0 ? limit : Config.MaxItems);
-        if (page.Count == 0)
+        var size = limit is > 0 ? limit.Value : Math.Max(1, Config.MaxItems);
+        var next = Math.Clamp(startIndex ?? 0, 0, row.ItemIds.Count);
+        var ordered = new List<BaseItem>(size);
+
+        // Titles the user marked "Don't recommend" (disliked) drop out as soon as they're marked, and
+        // the row tops up from further down its list. A few rounds at most; each is one item query
+        // and one batched user-data lookup.
+        for (var round = 0; round < 3 && ordered.Count < size && next < row.ItemIds.Count; round++)
+        {
+            var chunk = RowSelection.Page(row.ItemIds, next, size - ordered.Count + (round == 0 ? 0 : 5));
+            next += chunk.Count;
+
+            // One query for the chunk, with the user's access applied again
+            var found = _libraryManager.GetItemList(new InternalItemsQuery(user)
+            {
+                ItemIds = chunk.ToArray(),
+                DtoOptions = CardOptions(),
+            }).ToDictionary(i => i.Id);
+            var items = chunk.Where(found.ContainsKey).Select(id => found[id]).ToList();
+            var disliked = DislikedIds(user, items);
+            ordered.AddRange(items.Where(i => !disliked.Contains(i.Id)).Take(size - ordered.Count));
+        }
+
+        if (ordered.Count == 0)
         {
             return new QueryResult<BaseItemDto>(startIndex ?? 0, row.TotalCount, Array.Empty<BaseItemDto>());
         }
 
-        // One query for the whole page, with the user's access applied again
-        var found = _libraryManager.GetItemList(new InternalItemsQuery(user)
-        {
-            ItemIds = page.ToArray(),
-            DtoOptions = CardOptions(),
-        }).ToDictionary(i => i.Id);
-        var ordered = page.Where(found.ContainsKey).Select(id => found[id]).ToList();
         var dtos = _dtoService.GetBaseItemDtos(ordered, CardOptions(), user);
         return new QueryResult<BaseItemDto>(startIndex ?? 0, row.TotalCount, dtos);
     }
@@ -239,10 +261,30 @@ public sealed class RowsService
     private static string Key(User user, string kind) =>
         user.Id.ToString("N") + "|" + Today.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + "|" + kind;
 
-    private async Task<RowResult> BuildBecauseYouWatched(User user, CancellationToken cancellationToken)
+    private async Task<RowResult> BuildBecauseYouWatched(User user, string? kind, CancellationToken cancellationToken)
     {
-        var candidates = RecentlyFinished(user, 10);
-        var source = RowSelection.Pick(candidates, RowSelection.DailySeed(user.Id, Today, "because-you-watched"));
+        // The "anything" row stays clear of the movie and show rows: another source title, and
+        // none of their suggestions
+        var otherSources = new HashSet<Guid>();
+        var otherItems = new HashSet<Guid>();
+        if (kind is null)
+        {
+            foreach (var other in new[] { "movie", "series" })
+            {
+                var row = await BecauseYouWatched(user, other, cancellationToken).ConfigureAwait(false);
+                otherItems.UnionWith(row.ItemIds);
+                if (row.Headers.TryGetValue("X-GooseFlix-Source-Id", out var id) && Guid.TryParse(id, out var sourceId))
+                {
+                    otherSources.Add(sourceId);
+                }
+            }
+        }
+
+        var candidates = RecentlyFinished(user, 30)
+            .Where(i => MatchesKind(i, kind) && !otherSources.Contains(i.Id))
+            .Take(10)
+            .ToList();
+        var source = RowSelection.Pick(candidates, RowSelection.DailySeed(user.Id, Today, "because-you-watched" + (kind is null ? string.Empty : ":" + kind)));
         if (source is null)
         {
             return RowResult.Nothing;
@@ -253,10 +295,12 @@ public sealed class RowsService
             Array.Empty<Guid>(),
             user,
             Minimal(),
-            SimilarCandidates,
+            kind is null ? SimilarCandidates : SimilarCandidates * 2,
             _libraryManager.GetLibraryOptions(source),
             cancellationToken).ConfigureAwait(false);
-        var titles = similar.Where(i => i.Id != source.Id && i is Movie or Series).ToList();
+        var titles = similar
+            .Where(i => i.Id != source.Id && i is Movie or Series && MatchesKind(i, kind) && !otherItems.Contains(i.Id))
+            .ToList();
         var played = PlayedIds(user, titles);
         var items = RowSelection.UnwatchedFirst(titles, i => played.Contains(i.Id));
 
@@ -265,6 +309,10 @@ public sealed class RowsService
             [TitleHeader] = "Because you watched " + source.Name,
             ["X-GooseFlix-Source-Id"] = source.Id.ToString("N"),
             ["X-GooseFlix-Source-Type"] = source is Series ? "Series" : "Movie",
+
+            // Which row this is; an app that asks for the movie or show row can tell this plugin
+            // (which has them) from an older one that ignores the kind
+            ["X-GooseFlix-Row-Kind"] = kind ?? "any",
         };
         if (source.TryGetProviderId(MetadataProvider.Tmdb, out var tmdb))
         {
@@ -312,14 +360,24 @@ public sealed class RowsService
     private RowResult BuildPickedForYou(User user)
     {
         var watched = RecentlyFinished(user, 50);
-        var weights = RowSelection.GenreWeights(watched.Select(i => (IEnumerable<string>)i.Genres));
+        var disliked = _libraryManager.GetItemList(new InternalItemsQuery(user)
+        {
+            IncludeItemTypes = TitleKinds,
+            Recursive = true,
+            IsLiked = false,
+            Limit = 100,
+            DtoOptions = Minimal(),
+        });
+        var weights = RowSelection.LessDisliked(
+            RowSelection.GenreWeights(watched.Select(i => (IEnumerable<string>)i.Genres)),
+            disliked.Select(i => (IEnumerable<string>)i.Genres));
         if (weights.Count == 0)
         {
             return RowResult.Nothing;
         }
 
         var top = weights.OrderByDescending(w => w.Value).Take(6).Select(w => w.Key).ToArray();
-        var watchedIds = watched.Select(i => i.Id).ToHashSet();
+        var watchedIds = watched.Select(i => i.Id).Concat(disliked.Select(i => i.Id)).ToHashSet();
         var candidates = _libraryManager.GetItemList(new InternalItemsQuery(user)
         {
             IncludeItemTypes = TitleKinds,
@@ -331,7 +389,7 @@ public sealed class RowsService
             Limit = PickedCandidates,
             DtoOptions = Minimal(),
         }).Where(i => !watchedIds.Contains(i.Id));
-        var items = RowSelection.ByGenreMatch(candidates, weights, i => i.Genres, i => i.Id.ToString("N"), RowSelection.DailySeed(user.Id, Today, "picked-for-you"));
+        var items = RowSelection.Diverse(candidates, weights, i => i.Genres, i => i is Movie, i => i.Id.ToString("N"), RowSelection.DailySeed(user.Id, Today, "picked-for-you"));
         var headers = new Dictionary<string, string> { [TitleHeader] = "Picked for you" };
         return new RowResult(items.Select(i => i.Id).ToList(), items.Count, headers);
     }
@@ -394,6 +452,27 @@ public sealed class RowsService
             .Select(id => movies.TryGetValue(id, out var m) ? m : series.GetValueOrDefault(id))
             .OfType<BaseItem>()
             .ToList();
+    }
+
+    private static bool MatchesKind(BaseItem item, string? kind) => kind switch
+    {
+        "movie" => item is Movie,
+        "series" => item is Series,
+        _ => true,
+    };
+
+    /// <summary>Which of these items the user marked "Don't recommend" (disliked).</summary>
+    private HashSet<Guid> DislikedIds(User user, IReadOnlyList<BaseItem> items)
+    {
+        if (items.Count == 0)
+        {
+            return new HashSet<Guid>();
+        }
+
+        return _userDataManager.GetUserDataBatch(items, user)
+            .Where(e => e.Value?.Likes == false)
+            .Select(e => e.Key)
+            .ToHashSet();
     }
 
     private HashSet<Guid> PlayedIds(User user, IReadOnlyList<BaseItem> items)

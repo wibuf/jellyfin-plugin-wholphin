@@ -201,4 +201,58 @@ public class RowSelectionTests
         Assert.Single(loaded.MoodList);
         Assert.Equal("only", loaded.MoodList[0].Id);
     }
+
+    private sealed record Title(string Id, bool Movie, params string[] Genres);
+
+    [Fact]
+    public void LessDisliked_LowersDislikedGenres_AndDropsSpentOnes()
+    {
+        var weights = new Dictionary<string, int> { ["Anime"] = 5, ["Comedy"] = 1, ["Drama"] = 2 };
+        var result = RowSelection.LessDisliked(weights, new[] { new[] { "anime", "Comedy" }, new[] { "Anime" } });
+        Assert.Equal(3, result["Anime"]);
+        Assert.False(result.ContainsKey("Comedy"));
+        Assert.Equal(2, result["Drama"]);
+    }
+
+    [Fact]
+    public void Diverse_TakesTurnsAcrossGenres_SoOneCantFillTheRow()
+    {
+        // Anime outweighs everything, and its titles score highest; still only every other pick
+        var weights = new Dictionary<string, int> { ["Anime"] = 10, ["Comedy"] = 2 };
+        var titles = new[]
+        {
+            new Title("a1", false, "Anime"), new Title("a2", false, "Anime"), new Title("a3", false, "Anime"),
+            new Title("c1", false, "Comedy"), new Title("c2", false, "Comedy"),
+        };
+        var row = RowSelection.Diverse(titles, weights, t => t.Genres, t => t.Movie, t => t.Id, 1).Select(t => t.Id[0]).ToList();
+        Assert.Equal(new[] { 'a', 'c', 'a', 'c', 'a' }, row);
+    }
+
+    [Fact]
+    public void Diverse_AlternatesMoviesAndShows_AndKeepsEveryTitleOnce()
+    {
+        var weights = new Dictionary<string, int> { ["Action"] = 3, ["Drama"] = 1 };
+        var titles = new[]
+        {
+            new Title("s1", false, "Action", "Drama"), new Title("s2", false, "Action"), new Title("s3", false, "Action"),
+            new Title("m1", true, "Action"), new Title("m2", true, "Drama"),
+        };
+        var row = RowSelection.Diverse(titles, weights, t => t.Genres, t => t.Movie, t => t.Id, 7);
+        Assert.Equal(5, row.Select(t => t.Id).Distinct().Count());
+        Assert.Equal(new[] { false, true, false, true, false }, row.Select(t => t.Movie));
+    }
+
+    [Theory]
+    [InlineData("movie", "movie")]
+    [InlineData("Movies", "movie")]
+    [InlineData("series", "series")]
+    [InlineData("tv", "series")]
+    [InlineData("show", "series")]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("anything", null)]
+    public void WatchedKind_ReadsTheQuery(string? kind, string? expected)
+    {
+        Assert.Equal(expected, RowSelection.WatchedKind(kind));
+    }
 }

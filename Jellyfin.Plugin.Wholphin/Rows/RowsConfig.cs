@@ -19,7 +19,7 @@ public class RowsConfig
     public bool PickedForYou { get; set; } = true;
 
     /// <summary>Gets or sets how many mood rows show a day.</summary>
-    public int MoodsPerDay { get; set; } = 3;
+    public int MoodsPerDay { get; set; } = 6;
 
     /// <summary>
     /// Gets or sets the longest a built row is kept, in hours. Rows are also rebuilt when the row day
@@ -102,6 +102,25 @@ public class RowsConfig
         Mood("dystopias", "Dystopias", "dystopia", "post-apocalyptic future", "post-apocalyptic"),
         Mood("serial-killers", "Serial killers", "serial killer"),
         Mood("martial-arts", "Martial arts", "martial arts", "kung fu", "karate"),
+
+        // Added 2026-11-16 for six moods a day, tuned the same way: 35–127 titles each in the library
+        Mood("ghosts", "Ghost stories", "ghost", "haunted house", "evil spirit", "haunting", "possession", "exorcism", "demonic possession", "paranormal"),
+        Mood("assassins", "Assassins & hitmen", "assassin", "hitman", "mercenary", "one man army", "contract killer"),
+        Mood("robots", "Robots & AI", "artificial intelligence (a.i.)", "robot", "android", "cyberpunk", "cyborg", "transhumanism"),
+        Mood("sword-and-sorcery", "Swords & sorcery", "sword and sorcery", "high fantasy", "dragon", "wizard", "elves", "dark fantasy", "epic fantasy"),
+        Mood("buddy-cops", "Buddy cops & partners", "buddy cop", "buddy comedy", "buddy"),
+        Mood("mobsters", "Mobsters", "organized crime", "gangster", "mafia", "drug dealer", "drug cartel", "mob boss", "yakuza"),
+        Mood("on-the-run", "On the run", "on the run", "fugitive", "prison", "prison escape", "ex-con", "escape"),
+        Mood("aliens", "Aliens", "alien", "alien invasion", "alien life-form", "ufo", "first contact"),
+        Mood("mind-benders", "Mind-benders", "surrealism", "dreams", "parallel world", "alternative reality", "memory loss", "amnesia", "mind control"),
+        Mood("war", "War stories", "world war ii", "war", "battle", "soldier", "world war i", "vietnam war"),
+        Mood("revenge", "Revenge", "revenge", "vigilante", "vengeance"),
+        Mood("family-night", "Family movie night", "based on children's book", "talking animal", "toy comes to life", "anthropomorphism", "kids"),
+        Mood("tearjerkers", "Tearjerkers", "tragedy", "grief", "loss of loved one", "tragic", "terminal illness", "tearjerker"),
+        Mood("creature-features", "Creature features", "shark", "animal horror", "animal attack", "giant monster", "dinosaur", "creature feature"),
+        Mood("conspiracies", "Conspiracies", "conspiracy", "secret organization", "government conspiracy", "cover-up", "corruption"),
+        Mood("game-worlds", "Game worlds", "based on video game", "video game", "death game", "virtual reality"),
+        Mood("disasters", "Disasters", "disaster", "natural disaster", "disaster movie", "volcano", "tornado", "tsunami", "earthquake"),
         Seasonal(Mood("christmas", "Christmas favourites", "christmas", "santa claus", "christmas party"), 11, 12),
         Seasonal(Mood("halloween", "Halloween", "halloween"), 10),
     };

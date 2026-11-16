@@ -70,6 +70,7 @@ public class RowsController : ControllerBase
         {
             Version = WholphinPlugin.Instance?.Version.ToString() ?? string.Empty,
             Rows = rows,
+            Features = new[] { "because-you-watched-kinds", "dislikes", "varied-picks" },
             MoodsPerDay = config.Moods ? Math.Max(0, config.MoodsPerDay) : 0,
         };
     }
@@ -78,6 +79,7 @@ public class RowsController : ControllerBase
     /// <param name="userId">The user (the app sends it).</param>
     /// <param name="startIndex">First item.</param>
     /// <param name="limit">Most items.</param>
+    /// <param name="kind">"movie" or "series" for the movie or show row; none for the row from anything.</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>The row.</returns>
     [HttpGet("because-you-watched")]
@@ -87,8 +89,12 @@ public class RowsController : ControllerBase
         [FromQuery] Guid? userId,
         [FromQuery] int? startIndex,
         [FromQuery] int? limit,
-        CancellationToken cancellationToken) =>
-        Row("because-you-watched", userId, startIndex, limit, RowsService.Config.BecauseYouWatched, user => _rows.BecauseYouWatched(user, cancellationToken));
+        [FromQuery] string? kind,
+        CancellationToken cancellationToken)
+    {
+        var watchedKind = RowSelection.WatchedKind(kind);
+        return Row("because-you-watched" + (watchedKind is null ? string.Empty : ":" + watchedKind), userId, startIndex, limit, RowsService.Config.BecauseYouWatched, user => _rows.BecauseYouWatched(user, watchedKind, cancellationToken));
+    }
 
     /// <summary>Today's mood in a slot: titles with any of the mood's keyword tags.</summary>
     /// <param name="userId">The user (the app sends it).</param>
@@ -228,6 +234,9 @@ public class RowsCapabilities
 
     /// <summary>Gets or sets how many mood slots there are today.</summary>
     public int MoodsPerDay { get; set; }
+
+    /// <summary>Gets or sets what this version can do beyond the first release (GooseFlix #1636).</summary>
+    public IReadOnlyList<string> Features { get; set; } = Array.Empty<string>();
 }
 
 /// <summary>One of today's moods.</summary>
