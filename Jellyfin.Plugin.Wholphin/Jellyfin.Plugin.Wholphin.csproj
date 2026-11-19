@@ -2,8 +2,8 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Jellyfin.Plugin.Wholphin</RootNamespace>
-    <AssemblyVersion>0.1.1.503</AssemblyVersion>
-    <FileVersion>0.1.1.503</FileVersion>
+    <AssemblyVersion>0.1.1.504</AssemblyVersion>
+    <FileVersion>0.1.1.504</FileVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
@@ -25,5 +25,7 @@
   <ItemGroup>
     <None Remove="Pages\HomeSettings\index.html" />
     <EmbeddedResource Include="Pages\HomeSettings\index.html" />
+    <None Remove="Pages\GooseFlix\index.html" />
+    <EmbeddedResource Include="Pages\GooseFlix\index.html" />
   </ItemGroup>
 </Project>

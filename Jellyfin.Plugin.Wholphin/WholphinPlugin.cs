@@ -77,7 +77,10 @@ public class WholphinPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
     {
         return new List<PluginPageInfo>
         {
-            new() { Name = Name, EmbeddedResourcePath = ns + ".Pages.HomeSettings.index.html" },
+            // Fork (GooseFlix #1671): the settings form first, so the plugin's Settings button opens it;
+            // upstream's YAML editor stays as the Advanced page
+            new() { Name = Name, EmbeddedResourcePath = ns + ".Pages.GooseFlix.index.html" },
+            new() { Name = "GooseFlixAdvanced", EmbeddedResourcePath = ns + ".Pages.HomeSettings.index.html" },
         };
     }
 }

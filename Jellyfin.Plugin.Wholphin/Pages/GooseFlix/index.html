@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<!-- Fork (GooseFlix #1671): the plugin's settings as a form. The YAML editor (upstream's page)
+     stays as the "Advanced" page for anything this form doesn't cover. Saving keeps every other
+     setting as it is: the form edits the loaded configuration and sends it all back. -->
+<html lang="en-US">
+<head>
+    <title>GooseFlix</title>
+</head>
+<body>
+<div id="gooseflixSettingsPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+    <div data-role="content">
+        <div class="content-primary">
+            <style>
+                .gf-section { border: 1px solid rgba(255,255,255,.15); border-radius: 8px; padding: 1em 1.2em; margin-bottom: 1.5em; background: rgba(0,0,0,.15); }
+                .gf-section h2 { margin-top: 0; }
+                .gf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14em, 1fr)); gap: 0 1.5em; }
+                .gf-status { display: grid; grid-template-columns: max-content 1fr; gap: .3em 1em; margin-bottom: 1em; }
+                .gf-status .gf-label { opacity: .7; }
+                .gf-row { display: grid; gap: .5em; align-items: end; padding: .6em 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+                .gf-override { grid-template-columns: 2fr repeat(4, 1.4fr) auto; }
+                .gf-mood { grid-template-columns: 1fr 1.4fr 3fr .7fr 1fr auto; }
+                .gf-row .inputContainer, .gf-row .selectContainer { margin: 0; }
+                .gf-ok { color: #6c6; } .gf-bad { color: #e66; }
+                .gf-key { display: flex; gap: .5em; align-items: end; }
+                .gf-key .inputContainer { flex: 1; }
+                .gf-small { font-size: .9em; opacity: .75; }
+            </style>
+
+            <h1>GooseFlix</h1>
+            <p class="gf-small">Settings take effect when saved, without a restart.
+                <a is="emby-linkbutton" class="button-link" href="#/configurationpage?name=GooseFlixAdvanced">Advanced (YAML)</a></p>
+
+            <form id="gooseflixForm">
+                <!-- Ratings from MDBList -->
+                <div class="gf-section">
+                    <h2>Ratings from MDBList</h2>
+                    <div class="gf-status" id="gfStatus"><span class="gf-label">Status</span><span>Loading…</span></div>
+                    <button is="emby-button" type="button" class="raised" id="gfRunNow"><span>Run now</span></button>
+                    <div class="checkboxContainer" style="margin-top:1em">
+                        <label><input is="emby-checkbox" type="checkbox" id="trEnabled"/><span>Fetch ratings from MDBList</span></label>
+                    </div>
+                    <div class="gf-key">
+                        <div class="inputContainer">
+                            <input is="emby-input" type="password" id="trKey" label="MDBList API key" autocomplete="off"/>
+                            <div class="fieldDescription">Stays on the server; never sent to the apps.</div>
+                        </div>
+                        <button is="emby-button" type="button" class="raised" id="trKeyShow"><span>Show</span></button>
+                    </div>
+                    <div class="gf-grid">
+                        <div class="inputContainer"><input is="emby-input" type="number" min="1" id="trRefreshHours" label="Refresh every (hours)"/></div>
+                        <div class="inputContainer"><input is="emby-input" type="number" min="0" id="trNewDelay" label="Wait after a title is added (minutes)"/></div>
+                        <div class="inputContainer"><input is="emby-input" type="number" min="0" id="trDailyLimit" label="Requests per day, at most"/>
+                            <div class="fieldDescription">The MDBList account allows 25,000.</div></div>
+                        <div class="inputContainer"><input is="emby-input" type="number" min="1" max="200" id="trBatch" label="Titles per request"/></div>
+                        <div class="inputContainer"><input is="emby-input" type="number" min="1" id="trPerRun" label="Requests per five-minute run"/></div>
+                    </div>
+                </div>
+
+                <!-- Fill Jellyfin's ratings -->
+                <div class="gf-section">
+                    <h2>Fill Jellyfin's ratings</h2>
+                    <p class="gf-small">Writes the chosen ratings into Jellyfin's own Community rating (0–10) and Critic rating (0–100), which Jellyfin's sort and other apps use. This replaces the values already there.</p>
+                    <div class="checkboxContainer">
+                        <label><input is="emby-checkbox" type="checkbox" id="ffEnabled"/><span>Fill Jellyfin's ratings</span></label>
+                    </div>
+                    <div class="gf-grid">
+                        <div class="selectContainer"><select is="emby-select" id="ffMovieCommunity" label="Movies: Community rating"></select></div>
+                        <div class="selectContainer"><select is="emby-select" id="ffMovieCritic" label="Movies: Critic rating"></select></div>
+                        <div class="selectContainer"><select is="emby-select" id="ffShowCommunity" label="Shows: Community rating"></select></div>
+                        <div class="selectContainer"><select is="emby-select" id="ffShowCritic" label="Shows: Critic rating"></select></div>
+                    </div>
+                    <h3>Per library</h3>
+                    <div id="ffOverrides"></div>
+                    <button is="emby-button" type="button" class="raised" id="ffAdd"><span>Add library</span></button>
+                </div>
+
+                <!-- Personal home rows -->
+                <div class="gf-section">
+                    <h2>Personal home rows</h2>
+                    <div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="rwPicked"/><span>Picked for you</span></label></div>
+                    <div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="rwByw"/><span>Because you watched</span></label></div>
+                    <div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="rwMoods"/><span>Mood rows</span></label></div>
+                    <div class="gf-grid">
+                        <div class="inputContainer"><input is="emby-input" type="number" min="0" max="12" id="rwMoodsPerDay" label="Moods per day"/></div>
+                        <div class="inputContainer"><input is="emby-input" type="number" min="1" id="rwLookback" label="Look back over (days)"/></div>
+                        <div class="inputContainer"><input is="emby-input" type="number" min="1" id="rwMaxItems" label="Titles per row"/></div>
+                        <div class="inputContainer"><input is="emby-input" type="number" min="0" max="23" id="rwWarmHour" label="New rows each day at (hour)"/></div>
+                        <div class="inputContainer"><input is="emby-input" type="number" min="1" id="rwWarmActive" label="Build ahead for users active in (days)"/></div>
+                        <div class="inputContainer"><input is="emby-input" type="number" min="1" id="rwCacheHours" label="Keep built rows for (hours)"/></div>
+                    </div>
+                    <h3>Moods</h3>
+                    <p class="gf-small">A mood matches titles with any of its keywords (TMDB keyword tags), and is offered to a user with at least the minimum titles. Months limit it to part of the year (e.g. 11, 12); empty means all year.</p>
+                    <div id="rwMoodList"></div>
+                    <button is="emby-button" type="button" class="raised" id="rwAddMood"><span>Add mood</span></button>
+                </div>
+
+                <!-- Ratings on add -->
+                <div class="gf-section">
+                    <h2>Ratings on add (older)</h2>
+                    <p class="gf-small">Asks the MDBList Ratings plugin to fetch a new title's ratings. Not used while "Fetch ratings from MDBList" above is on.</p>
+                    <div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="roaEnabled"/><span>On</span></label></div>
+                    <div class="gf-grid">
+                        <div class="inputContainer"><input is="emby-input" type="number" min="0" id="roaDaily" label="Titles per day, at most"/></div>
+                        <div class="inputContainer"><input is="emby-input" type="number" min="0" id="roaDelay" label="Wait after adding (minutes)"/></div>
+                    </div>
+                </div>
+
+                <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+            </form>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            var pluginId = '00E68C90-8840-48D0-AD65-0A5D58249652';
+            var page = document.querySelector('#gooseflixSettingsPage');
+            var config = null;
+            var libraries = [];
+            var sources = [
+                ['', 'Leave as is'], ['imdb', 'IMDb'], ['tomatoes', 'Rotten Tomatoes (critics)'], ['popcorn', 'Rotten Tomatoes (audience)'],
+                ['metacritic', 'Metacritic'], ['metacriticuser', 'Metacritic (users)'], ['myanimelist', 'MyAnimeList'],
+                ['letterboxd', 'Letterboxd'], ['tmdb', 'TMDB'], ['trakt', 'Trakt'], ['rogerebert', 'Roger Ebert'], ['mdblist', 'MDBList score']
+            ];
+
+            function $(id) { return page.querySelector('#' + id); }
+            function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+            function num(id, fallback) { var v = parseInt($(id).value, 10); return isNaN(v) ? fallback : v; }
+            function options(selected) {
+                var s = (selected || '').toLowerCase();
+                return sources.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === s ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('');
+            }
+            function fillSelect(id, value) { $(id).innerHTML = options(value); }
+
+            function overrideRow(o) {
+                var libs = libraries.slice();
+                if (o.Library && libs.indexOf(o.Library) < 0) libs.unshift(o.Library);
+                var libOptions = libs.map(function (n) { return '<option' + (n === o.Library ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('');
+                return '<div class="gf-row gf-override">' +
+                    '<div class="selectContainer"><select is="emby-select" class="ovLibrary" label="Library">' + libOptions + '</select></div>' +
+                    '<div class="selectContainer"><select is="emby-select" class="ovMovieCommunity" label="Movies: Community">' + options(o.MovieCommunity) + '</select></div>' +
+                    '<div class="selectContainer"><select is="emby-select" class="ovMovieCritic" label="Movies: Critic">' + options(o.MovieCritic) + '</select></div>' +
+                    '<div class="selectContainer"><select is="emby-select" class="ovShowCommunity" label="Shows: Community">' + options(o.ShowCommunity) + '</select></div>' +
+                    '<div class="selectContainer"><select is="emby-select" class="ovShowCritic" label="Shows: Critic">' + options(o.ShowCritic) + '</select></div>' +
+                    '<button is="emby-button" type="button" class="raised gfRemove"><span>Remove</span></button></div>';
+            }
+
+            function moodRow(m) {
+                return '<div class="gf-row gf-mood">' +
+                    '<div class="inputContainer"><input is="emby-input" class="mdId" label="Id" value="' + esc(m.Id) + '"/></div>' +
+                    '<div class="inputContainer"><input is="emby-input" class="mdName" label="Name" value="' + esc(m.Name) + '"/></div>' +
+                    '<div class="inputContainer"><input is="emby-input" class="mdKeywords" label="Keywords (comma-separated)" value="' + esc((m.Keywords || []).join(', ')) + '"/></div>' +
+                    '<div class="inputContainer"><input is="emby-input" type="number" min="1" class="mdMin" label="Min titles" value="' + esc(m.MinTitles || 12) + '"/></div>' +
+                    '<div class="inputContainer"><input is="emby-input" class="mdMonths" label="Months" value="' + esc((m.Months || []).join(', ')) + '"/></div>' +
+                    '<button is="emby-button" type="button" class="raised gfRemove"><span>Remove</span></button></div>';
+            }
+
+            function wireRemove(container) {
+                container.querySelectorAll('.gfRemove').forEach(function (b) {
+                    b.onclick = function () { b.parentNode.remove(); };
+                });
+            }
+
+            function render() {
+                var tr = config.TitleRatings || {};
+                var ff = tr.FieldFill || {};
+                var rows = config.Rows || {};
+                var roa = config.RatingsOnAdd || {};
+                $('trEnabled').checked = !!tr.Enabled;
+                $('trKey').value = tr.MdbListApiKey || '';
+                $('trRefreshHours').value = tr.RefreshHours || 24;
+                $('trNewDelay').value = tr.NewTitleDelayMinutes != null ? tr.NewTitleDelayMinutes : 10;
+                $('trDailyLimit').value = tr.DailyRequestLimit != null ? tr.DailyRequestLimit : 5000;
+                $('trBatch').value = tr.BatchSize || 100;
+                $('trPerRun').value = tr.MaxRequestsPerRun || 60;
+
+                $('ffEnabled').checked = !!ff.Enabled;
+                fillSelect('ffMovieCommunity', ff.MovieCommunity);
+                fillSelect('ffMovieCritic', ff.MovieCritic);
+                fillSelect('ffShowCommunity', ff.ShowCommunity);
+                fillSelect('ffShowCritic', ff.ShowCritic);
+                $('ffOverrides').innerHTML = (ff.Overrides || []).map(overrideRow).join('');
+                wireRemove($('ffOverrides'));
+
+                $('rwPicked').checked = rows.PickedForYou !== false;
+                $('rwByw').checked = rows.BecauseYouWatched !== false;
+                $('rwMoods').checked = rows.Moods !== false;
+                $('rwMoodsPerDay').value = rows.MoodsPerDay != null ? rows.MoodsPerDay : 6;
+                $('rwLookback').value = rows.LookbackDays || 60;
+                $('rwMaxItems').value = rows.MaxItems || 40;
+                $('rwWarmHour').value = rows.WarmHour != null ? rows.WarmHour : 5;
+                $('rwWarmActive').value = rows.WarmActiveDays || 14;
+                $('rwCacheHours').value = rows.CacheHours || 24;
+                $('rwMoodList').innerHTML = (rows.MoodList || []).map(moodRow).join('');
+                wireRemove($('rwMoodList'));
+
+                $('roaEnabled').checked = !!roa.Enabled;
+                $('roaDaily').value = roa.DailyLimit != null ? roa.DailyLimit : 200;
+                $('roaDelay').value = roa.DelayMinutes != null ? roa.DelayMinutes : 10;
+            }
+
+            function list(text, asNumbers) {
+                return String(text || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s.length; })
+                    .map(function (s) { return asNumbers ? parseInt(s, 10) : s; }).filter(function (v) { return !asNumbers || !isNaN(v); });
+            }
+
+            function collect() {
+                var tr = config.TitleRatings = config.TitleRatings || {};
+                tr.Enabled = $('trEnabled').checked;
+                tr.MdbListApiKey = $('trKey').value.trim() || null;
+                tr.RefreshHours = num('trRefreshHours', 24);
+                tr.NewTitleDelayMinutes = num('trNewDelay', 10);
+                tr.DailyRequestLimit = num('trDailyLimit', 5000);
+                tr.BatchSize = num('trBatch', 100);
+                tr.MaxRequestsPerRun = num('trPerRun', 60);
+                var ff = tr.FieldFill = tr.FieldFill || {};
+                ff.Enabled = $('ffEnabled').checked;
+                ff.MovieCommunity = $('ffMovieCommunity').value;
+                ff.MovieCritic = $('ffMovieCritic').value;
+                ff.ShowCommunity = $('ffShowCommunity').value;
+                ff.ShowCritic = $('ffShowCritic').value;
+                ff.Overrides = Array.prototype.map.call(page.querySelectorAll('#ffOverrides .gf-override'), function (r) {
+                    return {
+                        Library: r.querySelector('.ovLibrary').value,
+                        MovieCommunity: r.querySelector('.ovMovieCommunity').value || null,
+                        MovieCritic: r.querySelector('.ovMovieCritic').value || null,
+                        ShowCommunity: r.querySelector('.ovShowCommunity').value || null,
+                        ShowCritic: r.querySelector('.ovShowCritic').value || null
+                    };
+                });
+
+                var rows = config.Rows = config.Rows || {};
+                rows.PickedForYou = $('rwPicked').checked;
+                rows.BecauseYouWatched = $('rwByw').checked;
+                rows.Moods = $('rwMoods').checked;
+                rows.MoodsPerDay = num('rwMoodsPerDay', 6);
+                rows.LookbackDays = num('rwLookback', 60);
+                rows.MaxItems = num('rwMaxItems', 40);
+                rows.WarmHour = num('rwWarmHour', 5);
+                rows.WarmActiveDays = num('rwWarmActive', 14);
+                rows.CacheHours = num('rwCacheHours', 24);
+                rows.MoodList = Array.prototype.map.call(page.querySelectorAll('#rwMoodList .gf-mood'), function (r) {
+                    var name = r.querySelector('.mdName').value.trim();
+                    var id = r.querySelector('.mdId').value.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                    return {
+                        Id: id,
+                        Name: name,
+                        Keywords: list(r.querySelector('.mdKeywords').value, false),
+                        MinTitles: parseInt(r.querySelector('.mdMin').value, 10) || 12,
+                        Months: list(r.querySelector('.mdMonths').value, true)
+                    };
+                }).filter(function (m) { return m.Name && m.Keywords.length; });
+
+                var roa = config.RatingsOnAdd = config.RatingsOnAdd || {};
+                roa.Enabled = $('roaEnabled').checked;
+                roa.DailyLimit = num('roaDaily', 200);
+                roa.DelayMinutes = num('roaDelay', 10);
+            }
+
+            function loadStatus() {
+                ApiClient.fetch({ url: ApiClient.getUrl('wholphin/ratings/status'), type: 'GET', dataType: 'json' }).then(function (s) {
+                    var last = s.lastRun;
+                    var lastText = last ? (new Date(last.atUtc).toLocaleString() + ': ' + (last.error ? last.error : (last.fetched + ' fetched, ' + last.due + ' were due of ' + last.titles))) : 'none yet';
+                    var rows = [
+                        ['Service', s.serviceRunning ? '<span class="gf-ok">running</span>' : '<span class="gf-bad">not running</span>'],
+                        ['Fetching', s.active ? '<span class="gf-ok">on</span>' : 'off (switch on and add a key)'],
+                        ['Titles with ratings', s.withRatings + ' of ' + s.titles + ' stored (' + s.fetchedLastDay + ' fetched in the last day)'],
+                        ['Requests today', s.requestsToday + ' of ' + s.dailyRequestLimit],
+                        ['Last run', esc(lastText)]
+                    ];
+                    $('gfStatus').innerHTML = rows.map(function (r) { return '<span class="gf-label">' + r[0] + '</span><span>' + r[1] + '</span>'; }).join('');
+                }).catch(function () {
+                    $('gfStatus').innerHTML = '<span class="gf-label">Status</span><span class="gf-bad">unavailable</span>';
+                });
+            }
+
+            function load() {
+                Dashboard.showLoadingMsg();
+                Promise.all([
+                    ApiClient.getPluginConfiguration(pluginId),
+                    ApiClient.getVirtualFolders().catch(function () { return []; })
+                ]).then(function (results) {
+                    config = results[0];
+                    libraries = (results[1] || []).map(function (f) { return f.Name; }).sort();
+                    render();
+                    loadStatus();
+                    Dashboard.hideLoadingMsg();
+                });
+            }
+
+            $('trKeyShow').addEventListener('click', function () {
+                var input = $('trKey');
+                input.type = input.type === 'password' ? 'text' : 'password';
+                this.querySelector('span').textContent = input.type === 'password' ? 'Show' : 'Hide';
+            });
+            $('ffAdd').addEventListener('click', function () {
+                $('ffOverrides').insertAdjacentHTML('beforeend', overrideRow({ Library: libraries[0] || '' }));
+                wireRemove($('ffOverrides'));
+            });
+            $('rwAddMood').addEventListener('click', function () {
+                $('rwMoodList').insertAdjacentHTML('beforeend', moodRow({ MinTitles: 12 }));
+                wireRemove($('rwMoodList'));
+            });
+            $('gfRunNow').addEventListener('click', function () {
+                ApiClient.fetch({ url: ApiClient.getUrl('wholphin/ratings/refresh'), type: 'POST' }).then(function () {
+                    Dashboard.alert('Ratings run started. The status updates when it finishes.');
+                    setTimeout(loadStatus, 15000);
+                }).catch(function () {
+                    Dashboard.alert('Could not start a run (one may already be going, or the service is not running).');
+                });
+            });
+            $('gooseflixForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                Dashboard.showLoadingMsg();
+                collect();
+                ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                    Dashboard.processPluginConfigurationUpdateResult(result);
+                    loadStatus();
+                }).catch(function () {
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert('Could not save the settings.');
+                });
+                return false;
+            });
+
+            page.addEventListener('pageshow', load);
+        })();
+    </script>
+</div>
+</body>
+</html>

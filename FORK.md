@@ -47,6 +47,13 @@ and may only happen in the 4–5 AM window (GooseFlix `.claude/GooseFlix.md`). C
 ### Identity
 - Shown as **GooseFlix** on the Jellyfin plugins page, with its own description and settings page
   title (#1634).
+- **Settings page** (`Pages/GooseFlix/index.html`, #1671): the plugin's Settings button opens a form instead of upstream's YAML editor.
+  - **Ratings from MDBList:** a live status panel (service running, titles with ratings, last run, requests today) with a **Run now** button. Fields for on/off, the API key (a password field with Show), refresh hours, the wait after adding, daily request limit, titles per request and requests per run.
+  - **Fill Jellyfin's ratings:** on/off, a source per field, and per-library overrides with a library picker.
+  - **Personal home rows:** the row switches and numbers, and the mood list (id, name, keywords, minimum titles, months), with add and remove.
+  - **Ratings on add:** its settings, noted as unused while the plugin's own ratings are on.
+  - **Saving:** the form edits the loaded configuration and saves it all back, so settings it doesn't show (eg the Seerr and home settings) are kept.
+  - **Advanced:** upstream's YAML editor stays as the "Advanced (YAML)" page (`GooseFlixAdvanced`), linked from the top.
 
 ### Personal home rows (#1635)
 Row endpoints for the app's "custom endpoint" home rows (`Api/RowsController.cs`; the selection rules are
