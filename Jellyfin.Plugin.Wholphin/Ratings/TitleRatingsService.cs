@@ -19,6 +19,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Querying;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -187,7 +188,9 @@ public sealed class TitleRatingsService : IHostedService, IDisposable
             IncludeItemTypes = new[] { BaseItemKind.Movie, BaseItemKind.Series },
             Recursive = true,
             IsVirtualItem = false,
-            DtoOptions = new DtoOptions(false) { EnableImages = false, EnableUserData = false },
+            // Jellyfin only loads provider ids when asked: without this every title had none and
+            // nothing was ever due (0.1.1.503/504)
+            DtoOptions = new DtoOptions(false) { Fields = new[] { ItemFields.ProviderIds }, EnableImages = false, EnableUserData = false },
         })
         .Select(i => new TitleRef(
             i.Id,

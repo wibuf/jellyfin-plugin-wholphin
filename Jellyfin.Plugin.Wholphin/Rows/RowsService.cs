@@ -314,7 +314,9 @@ public sealed class RowsService
             // (which has them) from an older one that ignores the kind
             ["X-GooseFlix-Row-Kind"] = kind ?? "any",
         };
-        if (source.TryGetProviderId(MetadataProvider.Tmdb, out var tmdb))
+        // The source came from a query without provider ids (Jellyfin only loads them when asked);
+        // the item itself has them
+        if ((_libraryManager.GetItemById(source.Id) ?? source).TryGetProviderId(MetadataProvider.Tmdb, out var tmdb))
         {
             headers["X-GooseFlix-Source-Tmdb"] = tmdb;
         }
