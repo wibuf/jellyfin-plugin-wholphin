@@ -35,21 +35,18 @@ public class RatingsController : ControllerBase
     private static readonly JsonSerializerOptions CamelCase = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private readonly TitleRatingsStore _store;
-    private readonly TitleRatingsService _service;
     private readonly ILibraryManager _libraryManager;
     private readonly IUserManager _userManager;
     private readonly IAuthorizationContext _authContext;
 
     /// <summary>Initializes a new instance of the <see cref="RatingsController"/> class.</summary>
     /// <param name="store">Ratings store.</param>
-    /// <param name="service">Ratings service.</param>
     /// <param name="libraryManager">Library manager.</param>
     /// <param name="userManager">User manager.</param>
     /// <param name="authContext">Authorization context.</param>
-    public RatingsController(TitleRatingsStore store, TitleRatingsService service, ILibraryManager libraryManager, IUserManager userManager, IAuthorizationContext authContext)
+    public RatingsController(TitleRatingsStore store, ILibraryManager libraryManager, IUserManager userManager, IAuthorizationContext authContext)
     {
         _store = store;
-        _service = service;
         _libraryManager = libraryManager;
         _userManager = userManager;
         _authContext = authContext;
@@ -129,8 +126,7 @@ public class RatingsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult> Status()
     {
-        var auth = await _authContext.GetAuthorizationInfo(Request).ConfigureAwait(false);
-        if (!auth.IsApiKey && !(auth.User?.HasPermission(PermissionKind.IsAdministrator) ?? false))
+        if (!await IsAdmin().ConfigureAwait(false))
         {
             return Forbid();
         }
@@ -143,9 +139,39 @@ public class RatingsController : ControllerBase
             titles = all.Count,
             withRatings = all.Values.Count(t => t.Ratings.Count > 0),
             fetchedLastDay = all.Values.Count(t => now - t.FetchedAtUtc < TimeSpan.FromDays(1)),
-            requestsToday = _service.UsedToday,
+            requestsToday = TitleRatingsService.UsedToday,
             dailyRequestLimit = TitleRatingsService.Config.DailyRequestLimit,
+            serviceRunning = TitleRatingsService.Current is not null,
+            lastRun = TitleRatingsService.LastRun,
         };
         return Content(JsonSerializer.Serialize(body, CamelCase), "application/json");
+    }
+
+    /// <summary>Starts a ratings run now instead of at the next five-minute tick. Admins only.</summary>
+    /// <returns>202 when started, 409 if one is already running, 503 if the service isn't running.</returns>
+    [HttpPost("refresh")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult> Refresh()
+    {
+        if (!await IsAdmin().ConfigureAwait(false))
+        {
+            return Forbid();
+        }
+
+        if (TitleRatingsService.Current is not { } service)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        return service.RunNow() ? Accepted() : Conflict();
+    }
+
+    private async Task<bool> IsAdmin()
+    {
+        var auth = await _authContext.GetAuthorizationInfo(Request).ConfigureAwait(false);
+        return auth.IsApiKey || (auth.User?.HasPermission(PermissionKind.IsAdministrator) ?? false);
     }
 }

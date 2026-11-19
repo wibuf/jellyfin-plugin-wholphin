@@ -142,4 +142,33 @@ public class TitleRatingsLogicTests
         Assert.Null(t.For("tomatoes"));
         Assert.Equal(7.1, t.For("imdb")!.Value);
     }
+
+    [Fact]
+    public void Parse_MdbListsRealBatchShape_OutOfOrder()
+    {
+        // As MDBList answered POST /tmdb/movie/ {"ids":[278,238]} on 2026-11-19 (trimmed): the
+        // titles come back in another order, "mal" can be null, "url" can be a number
+        const string json = """
+            [
+              {"id": 469627, "title": "The Godfather", "type": "movie",
+               "ids": {"imdb": "tt0068646", "trakt": 196, "tmdb": 238, "tvdb": 275, "mal": null, "mdblist": "a2d7"},
+               "ratings": [{"source": "imdb", "value": 9.2, "score": 92, "votes": 2273351, "url": 90},
+                           {"source": "metacritic", "value": 100, "score": 100, "votes": 16, "url": "/the-godfather"},
+                           {"source": "metacriticuser", "value": 9.2, "score": 92.0, "votes": 4581, "url": null}]},
+              {"id": 360, "title": "The Shawshank Redemption", "type": "movie",
+               "ids": {"imdb": "tt0111161", "trakt": 234, "tmdb": 278, "tvdb": 190, "mal": null, "mdblist": "a0"},
+               "ratings": [{"source": "imdb", "value": 9.3, "score": 93, "votes": 3266351, "url": 51}]}
+            ]
+            """;
+        var shawshank = Title("278");
+        var godfather = Title("238");
+        var batch = new FetchBatch("tmdb", "movie", new[] { shawshank, godfather });
+        var matched = TitleRatingsLogic.Match(batch, TitleRatingsLogic.Parse(json));
+
+        Assert.Equal(9.3, matched[shawshank.ItemId].Ratings.Single(r => r.Source == "imdb").Value);
+        Assert.Equal(92, matched[godfather.ItemId].Ratings[0].Score);
+        Assert.Equal("90", matched[godfather.ItemId].Ratings[0].Url);
+        Assert.False(matched[godfather.ItemId].Ids.ContainsKey("mal"));
+        Assert.Equal("tt0068646", matched[godfather.ItemId].Ids["imdb"]);
+    }
 }

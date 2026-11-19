@@ -34,7 +34,7 @@ public sealed class TitleRatingsService : IHostedService, IDisposable
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly TitleRatingsStore _store;
     private readonly ILogger<TitleRatingsService> _logger;
-    private readonly DailyBudget _budget = new();
+    private static readonly DailyBudget Budget = new();
     private readonly CancellationTokenSource _stopping = new();
     private Timer? _timer;
     private int _working;
@@ -61,13 +61,34 @@ public sealed class TitleRatingsService : IHostedService, IDisposable
     public static bool Active => Config is { Enabled: true } c && !string.IsNullOrWhiteSpace(c.MdbListApiKey);
 
     /// <summary>Gets requests used today.</summary>
-    public int UsedToday => _budget.Used(DateOnly.FromDateTime(DateTime.Now));
+    public static int UsedToday => Budget.Used(DateOnly.FromDateTime(DateTime.Now));
+
+    /// <summary>Gets the running service, once Jellyfin has started it (null before, or if it never did).</summary>
+    public static TitleRatingsService? Current { get; private set; }
+
+    /// <summary>Gets the last run's outcome, for the status endpoint.</summary>
+    public static RunReport? LastRun { get; private set; }
 
     /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        Current = this;
         _timer = new Timer(_ => _ = TickAsync(), null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(5));
+        _logger.LogInformation("GooseFlix: ratings service started (fetching {State})", Active ? "on" : "off until switched on with a key");
         return Task.CompletedTask;
+    }
+
+    /// <summary>Runs now instead of at the next five-minute tick (the status endpoint's "run now").</summary>
+    /// <returns>False if a run is already going.</returns>
+    public bool RunNow()
+    {
+        if (Volatile.Read(ref _working) == 1)
+        {
+            return false;
+        }
+
+        _ = TickAsync();
+        return true;
     }
 
     /// <inheritdoc />
@@ -95,8 +116,14 @@ public sealed class TitleRatingsService : IHostedService, IDisposable
         try
         {
             var config = Config;
-            if (!Active || DateTime.UtcNow < _pausedUntilUtc || config.MdbListApiKey == _rejectedKey)
+            if (!Active)
             {
+                return;
+            }
+
+            if (DateTime.UtcNow < _pausedUntilUtc || config.MdbListApiKey == _rejectedKey)
+            {
+                LastRun = new RunReport(DateTime.UtcNow, 0, 0, 0, _rejectedKey is not null && config.MdbListApiKey == _rejectedKey ? "MDBList refused the key" : "paused after a rate limit");
                 return;
             }
 
@@ -104,6 +131,7 @@ public sealed class TitleRatingsService : IHostedService, IDisposable
             var due = TitleRatingsLogic.Due(titles, id => _store.Get(id)?.FetchedAtUtc, DateTime.UtcNow, config.RefreshHours, config.NewTitleDelayMinutes);
             if (due.Count == 0)
             {
+                LastRun = new RunReport(DateTime.UtcNow, titles.Count, 0, 0, null);
                 return;
             }
 
@@ -111,7 +139,7 @@ public sealed class TitleRatingsService : IHostedService, IDisposable
             var fetched = 0;
             foreach (var batch in batches)
             {
-                if (_stopping.IsCancellationRequested || !_budget.TryUse(DateOnly.FromDateTime(DateTime.Now), config.DailyRequestLimit))
+                if (_stopping.IsCancellationRequested || !Budget.TryUse(DateOnly.FromDateTime(DateTime.Now), config.DailyRequestLimit))
                 {
                     break;
                 }
@@ -126,19 +154,24 @@ public sealed class TitleRatingsService : IHostedService, IDisposable
             }
 
             _store.Save();
+            LastRun = new RunReport(DateTime.UtcNow, titles.Count, due.Count, fetched, null);
             _logger.LogInformation(
-                "GooseFlix: ratings fetched for {Fetched} titles ({Due} were due, {Used} requests today)",
+                "GooseFlix: ratings fetched for {Fetched} titles ({Due} of {Titles} were due, {Used} requests today)",
                 fetched,
                 due.Count,
+                titles.Count,
                 UsedToday);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
         {
+            // Jellyfin is stopping
         }
 #pragma warning disable CA1031 // A failed run is logged and the next one tries again
         catch (Exception ex)
 #pragma warning restore CA1031
         {
+            // Timeouts included: only a shutdown is quiet
+            LastRun = new RunReport(DateTime.UtcNow, 0, 0, 0, ex.GetType().Name + ": " + ex.Message);
             _logger.LogWarning(ex, "GooseFlix: ratings run failed");
         }
         finally
@@ -252,3 +285,11 @@ public sealed class TitleRatingsService : IHostedService, IDisposable
         }
     }
 }
+
+/// <summary>What a ratings run did.</summary>
+/// <param name="AtUtc">When it ran.</param>
+/// <param name="Titles">Movies and shows in the library.</param>
+/// <param name="Due">How many were due.</param>
+/// <param name="Fetched">How many were fetched.</param>
+/// <param name="Error">What went wrong, if anything.</param>
+public sealed record RunReport(DateTime AtUtc, int Titles, int Due, int Fetched, string? Error);

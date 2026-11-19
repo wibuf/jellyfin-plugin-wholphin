@@ -19,9 +19,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<RowsWarmupService>();
         serviceCollection.AddHostedService<RatingsOnAddService>();
 
-        // GooseFlix #1671: the plugin's own MDBList ratings (the controller reads the same instances)
+        // GooseFlix #1671: the plugin's own MDBList ratings. Registered like the other background
+        // services (by type): 0.1.1.502's factory registration never started it. The controller
+        // shares the store; the run state is static.
         serviceCollection.AddSingleton<TitleRatingsStore>();
-        serviceCollection.AddSingleton<TitleRatingsService>();
-        serviceCollection.AddHostedService(provider => provider.GetRequiredService<TitleRatingsService>());
+        serviceCollection.AddHostedService<TitleRatingsService>();
     }
 }

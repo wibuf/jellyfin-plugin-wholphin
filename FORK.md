@@ -97,13 +97,15 @@ Every movie's and show's ratings from MDBList, in batches, kept by the plugin (`
 - **Endpoints** (`[Authorize]`):
   - `GET /wholphin/ratings/item?itemId=`: one title's ratings, in the same JSON shape as the MDBList Ratings plugin's `CachedByItemId` (`hasCache`, `cachedAtUtc`, `ids`, `ratings`). An episode or season answers for its show.
   - `GET /wholphin/ratings/values?parentId=&source=`: `{source, values: {itemId: {value, score, votes}}}`, one source's sort score (the 0–100 score, or the value scaled) for every movie and show in a library the caller can see. Titles without that rating are left out. The app sorts its own filtered results by it.
-  - `GET /wholphin/ratings/status` (admins): titles stored, how many have ratings, how many were fetched in the last day, and requests used today.
+  - `GET /wholphin/ratings/status` (admins): titles stored, how many have ratings, how many were fetched in the last day, requests used today, whether the service is running, and the last run (when, titles, due, fetched, error).
+  - `POST /wholphin/ratings/refresh` (admins): run now instead of at the next five-minute tick (202; 409 if one is running; 503 if the service isn't running).
   - `capabilities` lists `ratings` in `Features` while fetching is on.
 - **Jellyfin's own fields** (optional, `FieldFill.Enabled`, off by default): fills the Community rating (0–10, from the 0–100 score) and the Critic rating (0–100) from chosen sources, so Jellyfin's own sort and other clients use them.
   - **Defaults:** movies IMDb and RT critics, shows IMDb.
   - **Per-library overrides** by library name: Anime and Anime (Streaming) use MyAnimeList.
   - Only writes when a value changed.
 - **Ratings on add** stands down while this is on, since this fetches new titles itself.
+- **Registration:** the service is registered by type (`AddHostedService<TitleRatingsService>()`), like the plugin's other background services. 0.1.1.502 registered it through a factory and Jellyfin never started it (no requests, no log lines). It logs a line when it starts and after each run with something due; a failed run, timeouts included, logs a warning and shows on the status page. Only a shutdown is quiet.
 - **Settings** (`TitleRatings`, YAML page, no restart): `Enabled` (false), `MdbListApiKey` (server-side only, never sent to clients), `RefreshHours`, `NewTitleDelayMinutes`, `DailyRequestLimit`, `BatchSize`, `MaxRequestsPerRun`, `FieldFill`.
 - **Tests:** the rules (what's due, batching, reading MDBList's answer, matching, sorting, field values, per-library sources) are pure functions in `Ratings/TitleRatingsLogic.cs`, tested in `TitleRatingsLogicTests`.
 
