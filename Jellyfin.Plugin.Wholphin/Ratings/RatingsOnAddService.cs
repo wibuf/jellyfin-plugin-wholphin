@@ -75,7 +75,8 @@ public sealed class RatingsOnAddService : IHostedService, IDisposable
             var config = Config;
             // Movies and shows only: a new show arrives as a Series, and new episodes of an existing
             // show don't change its ratings (the daily task covers them)
-            if (!config.Enabled || e.Item is not (Movie or Series) || e.Item.IsVirtualItem)
+            // With the plugin's own ratings on (GooseFlix #1671), they fetch new titles instead
+            if (!config.Enabled || TitleRatingsService.Active || e.Item is not (Movie or Series) || e.Item.IsVirtualItem)
             {
                 return;
             }

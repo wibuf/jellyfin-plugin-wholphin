@@ -12,6 +12,8 @@
     <Compile Include="..\Jellyfin.Plugin.Wholphin\Rows\RowSelection.cs" Link="Rows\RowSelection.cs" />
     <Compile Include="..\Jellyfin.Plugin.Wholphin\Rows\RowsConfig.cs" Link="Rows\RowsConfig.cs" />
     <Compile Include="..\Jellyfin.Plugin.Wholphin\Ratings\RatingsQueue.cs" Link="Ratings\RatingsQueue.cs" />
+    <Compile Include="..\Jellyfin.Plugin.Wholphin\Ratings\TitleRatingsLogic.cs" Link="Ratings\TitleRatingsLogic.cs" />
+    <Compile Include="..\Jellyfin.Plugin.Wholphin\Ratings\TitleRatingsConfig.cs" Link="Ratings\TitleRatingsConfig.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

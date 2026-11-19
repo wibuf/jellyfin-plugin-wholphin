@@ -86,6 +86,27 @@ New movies and shows get their ratings fetched within minutes, not at the MDBLis
 - **Settings** (`RatingsOnAdd`, YAML page, no restart): `Enabled` (false), `DailyLimit` (200), `DelayMinutes` (10).
 - **Tests:** the queue, dedupe, retry schedule, daily limit and decision rules are pure functions in `Ratings/RatingsQueue.cs`, tested in `RatingsQueueTests`.
 
+### Ratings from MDBList, fetched by the plugin itself (#1671)
+Every movie's and show's ratings from MDBList, in batches, kept by the plugin (`Ratings/TitleRatings*.cs`, `Api/RatingsController.cs`). This replaces fetching one title at a time through the MDBList Ratings plugin.
+- **Fetching:** every five minutes the plugin fetches what's due.
+  - **What's due:** titles never fetched first (newest added first, once `NewTitleDelayMinutes` have passed so their ids are there), then anything older than `RefreshHours` (24).
+  - **Requests:** titles are grouped by kind and id (TMDB, else IMDb, else TVDB), `BatchSize` (100) per request, through MDBList's *Get Media Info Batch* (`POST /{provider}/{movie|show}/`).
+  - **Limits:** at most `MaxRequestsPerRun` (60) per run, with 1.5 s between requests (MDBList allows 1,000 reads per 5 minutes), and `DailyRequestLimit` (5,000; the account has 25,000) per day.
+  - **Misses and errors:** a title MDBList doesn't know gets an empty entry, so it's tried again a day later rather than every run. A refused key pauses fetching until the key changes; a rate limit pauses it for 15 minutes.
+- **Stored:** every source MDBList gives (imdb, tomatoes, popcorn, metacritic, metacriticuser, myanimelist, letterboxd, tmdb, trakt, rogerebert, mdblist, ...), with value, 0–100 score, votes and url, in `ratings.json` in the plugin's data folder.
+- **Endpoints** (`[Authorize]`):
+  - `GET /wholphin/ratings/item?itemId=`: one title's ratings, in the same JSON shape as the MDBList Ratings plugin's `CachedByItemId` (`hasCache`, `cachedAtUtc`, `ids`, `ratings`). An episode or season answers for its show.
+  - `GET /wholphin/ratings/values?parentId=&source=`: `{source, values: {itemId: {value, score, votes}}}`, one source's sort score (the 0–100 score, or the value scaled) for every movie and show in a library the caller can see. Titles without that rating are left out. The app sorts its own filtered results by it.
+  - `GET /wholphin/ratings/status` (admins): titles stored, how many have ratings, how many were fetched in the last day, and requests used today.
+  - `capabilities` lists `ratings` in `Features` while fetching is on.
+- **Jellyfin's own fields** (optional, `FieldFill.Enabled`, off by default): fills the Community rating (0–10, from the 0–100 score) and the Critic rating (0–100) from chosen sources, so Jellyfin's own sort and other clients use them.
+  - **Defaults:** movies IMDb and RT critics, shows IMDb.
+  - **Per-library overrides** by library name: Anime and Anime (Streaming) use MyAnimeList.
+  - Only writes when a value changed.
+- **Ratings on add** stands down while this is on, since this fetches new titles itself.
+- **Settings** (`TitleRatings`, YAML page, no restart): `Enabled` (false), `MdbListApiKey` (server-side only, never sent to clients), `RefreshHours`, `NewTitleDelayMinutes`, `DailyRequestLimit`, `BatchSize`, `MaxRequestsPerRun`, `FieldFill`.
+- **Tests:** the rules (what's due, batching, reading MDBList's answer, matching, sorting, field values, per-library sources) are pure functions in `Ratings/TitleRatingsLogic.cs`, tested in `TitleRatingsLogicTests`.
+
 ## Upstream
 
 - Forked from upstream v0.1.1.0 (`2d40996`) on 2026-11-15.

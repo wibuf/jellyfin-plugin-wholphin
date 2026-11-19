@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Jellyfin.Data;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Database.Implementations.Enums;
+using Jellyfin.Plugin.Wholphin.Ratings;
 using Jellyfin.Plugin.Wholphin.Rows;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Model.Dto;
@@ -70,7 +71,9 @@ public class RowsController : ControllerBase
         {
             Version = WholphinPlugin.Instance?.Version.ToString() ?? string.Empty,
             Rows = rows,
-            Features = new[] { "because-you-watched-kinds", "dislikes", "varied-picks" },
+            Features = TitleRatingsService.Active
+                ? new[] { "because-you-watched-kinds", "dislikes", "varied-picks", "ratings" }
+                : new[] { "because-you-watched-kinds", "dislikes", "varied-picks" },
             MoodsPerDay = config.Moods ? Math.Max(0, config.MoodsPerDay) : 0,
         };
     }

@@ -18,5 +18,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<MdbListBridge>();
         serviceCollection.AddHostedService<RowsWarmupService>();
         serviceCollection.AddHostedService<RatingsOnAddService>();
+
+        // GooseFlix #1671: the plugin's own MDBList ratings (the controller reads the same instances)
+        serviceCollection.AddSingleton<TitleRatingsStore>();
+        serviceCollection.AddSingleton<TitleRatingsService>();
+        serviceCollection.AddHostedService(provider => provider.GetRequiredService<TitleRatingsService>());
     }
 }

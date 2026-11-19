@@ -15,6 +15,9 @@ public class PluginConfiguration : BasePluginConfiguration
 
     // Fork: fetch ratings for new movies and shows straight away (GooseFlix #1635)
     public Ratings.RatingsOnAddConfig RatingsOnAdd { get; set; } = new();
+
+    /// <summary>Gets or sets the plugin's own MDBList ratings (Fork, GooseFlix #1671).</summary>
+    public Ratings.TitleRatingsConfig TitleRatings { get; set; } = new();
 }
 
 public class HomeConfig
